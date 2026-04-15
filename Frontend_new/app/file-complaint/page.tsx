@@ -8,21 +8,38 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faPaperclip } from "@fortawesome/free-solid-svg-icons"
 import axios from "axios"
 
+// ✅ Proper Type
+type FormDataType = {
+  name: string
+  email: string
+  phoneNo: string
+  aadharNumber: string
+  city: string
+  date: string
+  description: string
+  file: File | null
+}
+
 const FileComplaint: React.FC = () => {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
-  const [formData, setFormData] = useState({
+
+  // ✅ Typed state
+  const [formData, setFormData] = useState<FormDataType>({
     name: "",
     email: "",
     phoneNo: "",
     aadharNumber: "",
     city: "",
+    category: "",
     date: "",
     description: "",
-    file: null, // Keeping track of the file but not sending it
+    file: null,
   })
 
+  // ✅ Fixed file handler
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files ? e.target.files[0] : null
+    const file = e.target.files?.[0] || null
+
     setFormData((prevData) => ({
       ...prevData,
       file,
@@ -31,6 +48,7 @@ const FileComplaint: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
+
     setFormData((prevData) => ({
       ...prevData,
       [name]: value,
@@ -47,16 +65,23 @@ const FileComplaint: React.FC = () => {
         phoneNo: formData.phoneNo,
         aadharNumber: formData.aadharNumber,
         city: formData.city,
+        category: formData.category,
         date: formData.date,
         description: formData.description,
       }
 
       console.log("Submitting complaint:", data)
-      
-      const response = await axios.post("http://localhost:8000/api/complaints/create", data)
 
-      if (response.status === 201) {
+      const response = await axios.post(
+        "http://localhost:5000/complaints",
+        data
+      )
+
+      console.log("RESPONSE:", response.data)
+
+      if (response.status === 200 || response.status === 201) {
         setShowSuccessPopup(true)
+
         setTimeout(() => {
           setShowSuccessPopup(false)
         }, 3000)
@@ -84,84 +109,74 @@ const FileComplaint: React.FC = () => {
               height={300}
             />
           </div>
+
           <div className="p-8 w-full">
-            <motion.h2 className="text-3xl font-bold text-gray-900 mb-6" whileHover={{ scale: 1.05 }}>
+            <motion.h2 className="text-3xl font-bold text-gray-900 mb-6">
               File a Complaint
             </motion.h2>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              {[
-                "name",
-                "email",
-                "phoneNo",
-                "aadharNumber",
-                "city",
-                "date",
-              ].map((field) => (
+              {["name", "email", "phoneNo", "aadharNumber", "city", "date"].map((field) => (
                 <div key={field}>
-                  <label htmlFor={field} className="block text-sm font-medium text-gray-700">
-                    {field.charAt(0).toUpperCase() + field.slice(1)}
+                  <label className="block text-sm font-medium text-gray-700">
+                    {field}
                   </label>
                   <input
                     type={field === "date" ? "date" : "text"}
-                    id={field}
                     name={field}
                     required
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                    value={formData[field as keyof typeof formData] as string}
+                    className="mt-1 block w-full rounded-md border-gray-300"
+                    value={formData[field as keyof FormDataType] as string}
                     onChange={handleChange}
                   />
                 </div>
               ))}
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Description of the grievance faced
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={4}
-                  required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                  value={formData.description}
-                  onChange={handleChange}
-                ></textarea>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  <FontAwesomeIcon icon={faPaperclip} className="mr-2" />
-                  Attach files
+                  Category
                 </label>
-                <input
-                  type="file"
-                  className="mt-1 block w-full"
-                  accept="image/*,video/*"
-                  onChange={handleFileChange}
-                />
-                <p className="mt-1 text-xs text-gray-500">Image size: 5MB max</p>
-              </div>
-              <div>
-                <button
-                  type="submit"
-                  className="mt-4 w-full p-3 text-white bg-green-600 rounded-md"
+
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className="mt-1 block w-full rounded-md border-gray-300"
+                  required
                 >
-                  Submit Complaint
-                </button>
+                  <option value="">Select Category</option>
+                  <option value="CM Office">CM Office</option>
+                  <option value="Municipal">Municipal</option>
+                  <option value="Police">Police</option>
+                  <option value="Development Authority">Development Authority</option>
+                  <option value="Public Works Department">Public Works Department</option>
+                </select>
               </div>
+              <textarea
+                name="description"
+                placeholder="Description"
+                required
+                value={formData.description}
+                onChange={handleChange}
+                className="w-full border p-2"
+              />
+
+              <input type="file" onChange={handleFileChange} />
+
+              <button
+                type="submit"
+                className="w-full bg-green-600 text-white p-3 rounded"
+              >
+                Submit Complaint
+              </button>
             </form>
           </div>
         </div>
       </motion.div>
 
       {showSuccessPopup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-            <p className="text-lg font-bold">Complaint Submitted Successfully!</p>
-            <button
-              onClick={() => setShowSuccessPopup(false)}
-              className="mt-4 text-sm font-semibold text-blue-500"
-            >
-              Close
-            </button>
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded">
+            Complaint Submitted Successfully!
           </div>
         </div>
       )}

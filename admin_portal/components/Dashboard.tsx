@@ -1,171 +1,223 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Row, Col, Table, Badge } from 'react-bootstrap';
 import { Pie, Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
+import axios from 'axios';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title
+} from 'chart.js';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 const Dashboard = () => {
-  const recentGrievances = [
-    { id: 1, category: 'CM Office (Miscellaneous)', description: 'Public transport services are irregular, causing difficulties for daily commuters.', status: 'Open', nature: 'Non-Critical', recommendedSolution: 'Implement real-time tracking systems for timely arrival information.' },
-    { id: 2, category: 'Municipal', description: 'Water supply is inconsistent, and the water quality is poor.', status: 'In Progress', nature: 'Non-Critical', recommendedSolution: 'Implement rainwater harvesting systems for consistent, cleaner water access.' },
-    { id: 3, category: 'Police', description: 'Theft incidents have increased in residential areas, and police patrolling is inadequate.', status: 'Open', nature: 'Critical', recommendedSolution: 'Increase police presence to deter and apprehend thieves.' },
-    { id: 4, category: 'Development Authority', description: 'Issues related to the Waqf Board have emerged, involving encroachments and mismanagement of properties.', status: 'Resolved', nature: 'Non-Critical', recommendedSolution: 'Establish independent regulatory body for oversight and accountability in Waqf Board operations.' },
-    { id: 5, category: 'Public Works Department', description: 'Road accidents have increased due to lack of proper traffic signals and potholes on the main road', status: 'In Progress', nature: 'Critical', recommendedSolution: 'Install traffic signals, repair potholes, and enforce traffic regulations.' },
 
-    ];
+  const [complaints, setComplaints] = useState([]);
 
-  const pieData = {
-    labels: ['Municipal', 'Police', 'Development Authority', 'Public Works Department', 'CM Office (Miscellaneous)'],
-    datasets: [
-      {
-        data: [83,75,54,61,24],
-        backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
-        hoverBackgroundColor: ['#2e59d9', '#17a673', '#2c9faf', '#f4b619', '#e02d1b']
-      }
-    ]
+  // ✅ FETCH DATA
+  useEffect(() => {
+    axios.get("http://localhost:5000/complaints")
+      .then((res) => {
+        setComplaints(res.data);
+      })
+      .catch((err) => {
+        console.error("Error fetching complaints:", err);
+      });
+  }, []);
+
+  // ✅ PIE DATA (CATEGORY)
+  const getPieData = () => {
+    const categoryCount = {};
+
+    complaints.forEach((c) => {
+      const cat = c.category || "Others";
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+
+    return {
+      labels: Object.keys(categoryCount),
+      datasets: [
+        {
+          data: Object.values(categoryCount),
+          backgroundColor: [
+            "#4e73df",
+            "#1cc88a",
+            "#36b9cc",
+            "#f6c23e",
+            "#e74a3b"
+          ]
+        }
+      ]
+    };
   };
 
-  const barData = {
-    labels: ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
-    datasets: [
-      {
-        label: 'Grievances Received',
-        data: [65, 59, 89, 61, 23,0],
-        backgroundColor: '#4e73df'
-      },
-      {
-        label: 'Grievances Resolved',
-        data: [60, 55, 88, 36,15,0],
-        backgroundColor: '#1cc88a'
+  // ✅ BAR DATA (MONTHLY)
+  const getBarData = () => {
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    const received = new Array(12).fill(0);
+    const resolved = new Array(12).fill(0);
+
+    complaints.forEach((c) => {
+      if (!c.date) return;
+
+      const d = new Date(c.date);
+      if (isNaN(d)) return;
+
+      const month = d.getMonth();
+      received[month] += 1;
+
+      if (c.status === "Resolved") {
+        resolved[month] += 1;
       }
-    ]
+    });
+
+    return {
+      labels: months,
+      datasets: [
+        {
+          label: "Received",
+          data: received,
+          backgroundColor: "#4e73df"
+        },
+        {
+          label: "Resolved",
+          data: resolved,
+          backgroundColor: "#1cc88a"
+        }
+      ]
+    };
+  };
+
+  // ✅ OPTIMIZE (VERY IMPORTANT)
+  const pieData = useMemo(() => getPieData(), [complaints]);
+  const barData = useMemo(() => getBarData(), [complaints]);
+
+  // ✅ LOADING FIX (CORRECT PLACE)
+  if (!complaints.length) {
+    return <p className="text-center mt-10">Loading...</p>;
+  }
+const markResolved = async (id) => {
+  try {
+    await axios.put(`http://localhost:5000/complaints/${id}`);
+
+    // refresh data
+    const res = await axios.get("http://localhost:5000/complaints");
+    setComplaints(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+  // ✅ STATUS COLOR
+  const getStatusColor = (status) => {
+    if (status === "Pending") return "warning";
+    if (status === "Resolved") return "success";
+    return "danger";
   };
 
   return (
     <div className="container-fluid px-4">
       <h1 className="h3 mb-4 mt-4 text-gray-800">Dashboard</h1>
+
+      {/* CARDS */}
       <Row>
-        <Col lg={4} md={6} className="mb-4">
-          <Card className="border-left-primary shadow h-100 py-2">
+        <Col lg={4}>
+          <Card className="shadow mb-4">
             <Card.Body>
-              <Row className="no-gutters align-items-center">
-                <Col className="mr-2">
-                  <div className="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Grievances</div>
-                  <div className="h5 mb-0 font-weight-bold text-gray-800">297</div>
-                </Col>
-                <Col xs="auto">
-                  <i className="fas fa-calendar fa-2x text-gray-300"></i>
-                </Col>
-              </Row>
+              <h6>Total Complaints</h6>
+              <h4>{complaints.length}</h4>
             </Card.Body>
           </Card>
         </Col>
-        <Col lg={4} md={6} className="mb-4">
-          <Card className="border-left-success shadow h-100 py-2">
+
+        <Col lg={4}>
+          <Card className="shadow mb-4">
             <Card.Body>
-              <Row className="no-gutters align-items-center">
-                <Col className="mr-2">
-                  <div className="text-xs font-weight-bold text-success text-uppercase mb-1">Resolved Grievances</div>
-                  <div className="h5 mb-0 font-weight-bold text-gray-800">254</div>
-                </Col>
-                <Col xs="auto">
-                  <i className="fas fa-clipboard-list fa-2x text-gray-300"></i>
-                </Col>
-              </Row>
+              <h6>Pending</h6>
+              <h4>{complaints.filter(c => c.status === "Pending").length}</h4>
             </Card.Body>
           </Card>
         </Col>
-        <Col lg={4} md={6} className="mb-4">
-          <Card className="border-left-info shadow h-100 py-2">
+
+        <Col lg={4}>
+          <Card className="shadow mb-4">
             <Card.Body>
-              <Row className="no-gutters align-items-center">
-                <Col className="mr-2">
-                  <div className="text-xs font-weight-bold text-info text-uppercase mb-1">Open Grievances</div>
-                  <div className="h5 mb-0 font-weight-bold text-gray-800">38</div>
-                </Col>
-                <Col xs="auto">
-                  <i className="fas fa-check-circle fa-2x text-gray-300"></i>
-                </Col>
-              </Row>
+              <h6>Resolved</h6>
+              <h4>{complaints.filter(c => c.status === "Resolved").length}</h4>
             </Card.Body>
           </Card>
         </Col>
       </Row>
+
+      {/* CHARTS */}
       <Row>
-        <Col lg={4} className="mb-4">
-          <Card className="shadow">
-            <Card.Header className="py-3">
-              <h6 className="m-0 font-weight-bold text-primary">Grievances by Category</h6>
-            </Card.Header>
+        <Col lg={4}>
+          <Card className="shadow mb-4">
+            <Card.Header>Category</Card.Header>
             <Card.Body>
-              <Pie data={pieData} options={{ maintainAspectRatio: false, responsive: true }} height={200} />
+              <Pie data={pieData} />
             </Card.Body>
           </Card>
         </Col>
-        <Col lg={8} className="mb-4">
-          <Card className="shadow">
-            <Card.Header className="py-3">
-              <h6 className="m-0 font-weight-bold text-primary">Grievances Trend</h6>
-            </Card.Header>
+
+        <Col lg={8}>
+          <Card className="shadow mb-4">
+            <Card.Header>Trend</Card.Header>
             <Card.Body>
-              <Bar 
-                data={barData}
-                options={{
-                  maintainAspectRatio: false,
-                  responsive: true,
-                  scales: {
-                    y: {
-                      beginAtZero: true
-                    }
-                  }
-                }}
-                height={300}
-              />
+              <Bar data={barData} />
             </Card.Body>
           </Card>
         </Col>
       </Row>
+
+      {/* TABLE */}
       <Card className="shadow mb-4">
-        <Card.Header className="py-3">
-          <h6 className="m-0 font-weight-bold text-primary">Recent Grievances</h6>
-        </Card.Header>
+        <Card.Header>Recent Complaints</Card.Header>
         <Card.Body>
-          <Table striped bordered hover responsive className="table-sm">
+          <Table striped bordered hover responsive>
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Name</th>
                 <th>Category</th>
+                <th>City</th>
                 <th>Description</th>
                 <th>Status</th>
-                <th>Nature</th>
-                <th>Recommended Solution</th>
               </tr>
             </thead>
+
             <tbody>
-              {recentGrievances.map(grievance => (
-                <tr key={grievance.id}>
-                  <td>{grievance.id}</td>
-                  <td>{grievance.category}</td>
-                  <td>{grievance.description}</td>
+              {complaints.map((c, index) => (
+                <tr key={c.complaint_id}>
+                  <td>{index + 1}</td>
+                  <td>{c.name}</td>
+                  <td>{c.category}</td>
+                  <td>{c.city}</td>
+                  <td>{c.description}</td>
                   <td>
-                    <Badge bg={
-                      grievance.status === 'Open' ? 'danger' :
-                      grievance.status === 'In Progress' ? 'warning' :
-                      'success'
-                    }>
-                      {grievance.status}
+                    <Badge bg={getStatusColor(c.status)}>
+                      {c.status}
                     </Badge>
+
+                    {/* ✅ ADD BUTTON HERE */}
+                    {c.status !== "Resolved" && (
+                      <button
+                        style={{ marginLeft: "10px", padding: "5px 10px" }}
+                        onClick={() => markResolved(c.complaint_id)}
+                      >
+                        Resolve
+                      </button>
+                    )}
                   </td>
-                  <td>
-                    <Badge bg={grievance.nature === 'Critical' ? 'danger' : 'info'}>
-                      {grievance.nature}
-                    </Badge>
-                  </td>
-                  <td>{grievance.recommendedSolution}</td>
                 </tr>
               ))}
             </tbody>
+
           </Table>
         </Card.Body>
       </Card>
@@ -174,4 +226,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

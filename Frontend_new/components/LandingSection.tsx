@@ -20,7 +20,7 @@ const LandingSection: React.FC = () => {
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.2 }}
             >
-              Welcome to Samadhan
+              Welcome to JanSamadhan
             </motion.h1>
             <motion.h2
               className="text-2xl md:text-3xl font-semibold mb-6 text-blue-200"

@@ -42,7 +42,7 @@ const Navbar: React.FC = () => {
                   }}
                   transition={{ duration: 0.3 }}
                 >
-                  Samadhan
+                  JanSamadhan
                 </motion.span>
               </Link>
             </div>

@@ -10,26 +10,23 @@ const Footer: React.FC = () => {
             <h3 className="text-xl font-semibold mb-2">Contact Us</h3>
             <div className="flex items-center mb-2">
               <EnvelopeIcon className="h-5 w-5 mr-2" />
-              <span>Igrs@gmail.com</span>
+              <span>perweensana06@gmail.com</span>
             </div>
             <div className="flex items-center">
               <PhoneIcon className="h-5 w-5 mr-2" />
-              <span>987654318</span>
+              <span>8092070768</span>
             </div>
           </div>
           <div className="text-center md:text-right">
             <div className="flex items-center justify-center md:justify-end mb-2">
-              <span>&copy; 2025</span>
+              <span>&copy; 2026</span>
             </div>
             <div>
               <p className="font-semibold">Created by</p>
               <div className="flex flex-wrap justify-center md:justify-end mt-2">
                 {[
-                  "Kanak Raj Arora",
-                  "Kavya Agrawal",
-                  "Chintakrindi Kumar Kartik",
-                  "Kartikey Kushagra",
-                  "Siddharth Tiwari",
+                  "Sana Praween",
+                  "Md Rizwan"
                 ].map((name, index) => (
                   <span key={index} className="mx-2">
                     {name}
