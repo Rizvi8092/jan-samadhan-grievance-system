@@ -1,13 +1,27 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline"
 import { motion } from "framer-motion"
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  onSignInClick: () => void
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
   const [isHovered, setIsHovered] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  const router = useRouter()
+
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    setIsLoggedIn(!!token)
+  }, [])
+
   const navItems = [
     { name: "About Us", href: "/#about-us" },
     { name: "File a Complaint", href: "/file-complaint" },
@@ -25,44 +39,77 @@ const Navbar: React.FC = () => {
     }
   }
 
+  // 🔐 Protect routes
+  const handleProtectedRoute = (e: React.MouseEvent, href: string) => {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
+      e.preventDefault()
+      alert("Please login first")
+      onSignInClick()
+    } else {
+      router.push(href)
+    }
+  }
+
+  // 🔓 Logout
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    setIsLoggedIn(false)
+    alert("Logged out")
+  }
+
   return (
     <nav className="bg-gradient-to-r from-white to-gray-100 shadow-md sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Link href="/">
-                <motion.span
-                  className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600"
-                  onMouseEnter={() => setIsHovered(true)}
-                  onMouseLeave={() => setIsHovered(false)}
-                  initial={{ scale: 1 }}
-                  animate={{
-                    scale: isHovered ? 1.05 : 1,
-                  }}
-                  transition={{ duration: 0.3 }}
-                >
-                  JanSamadhan
-                </motion.span>
-              </Link>
-            </div>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-center space-x-4">
-                {navItems.map((item) => (
-                  <Link
+
+          {/* LOGO */}
+          <Link href="/">
+            <motion.span
+              className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 cursor-pointer"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              animate={{ scale: isHovered ? 1.05 : 1 }}
+            >
+              JanSamadhan
+            </motion.span>
+          </Link>
+
+          {/* NAV LINKS */}
+          <div className="hidden md:flex items-center space-x-4">
+
+            {navItems.map((item) => {
+              if (item.name === "File a Complaint" || item.name === "Track a Complaint") {
+                return (
+                  <a
                     key={item.name}
                     href={item.href}
-                    className="text-gray-800 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium relative group"
-                    onClick={(e) => handleClick(e, item.href)}
+                    onClick={(e) => handleProtectedRoute(e, item.href)}
+                    className="text-gray-800 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     {item.name}
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-600 transition-all group-hover:w-full"></span>
-                  </Link>
-                ))}
-              </div>
-            </div>
+                  </a>
+                )
+              }
+
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={(e) => handleClick(e, item.href)}
+                  className="text-gray-800 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  {item.name}
+                </Link>
+              )
+            })}
           </div>
+
+          {/* RIGHT SIDE */}
           <div className="hidden md:flex items-center">
+
+            {/* SEARCH */}
             <div className="relative">
               <input
                 type="text"
@@ -71,13 +118,25 @@ const Navbar: React.FC = () => {
               />
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-600 absolute right-2 top-1/2 transform -translate-y-1/2" />
             </div>
-            <Link
-              href="/signup"
-              className="ml-4 text-gray-800 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Sign In / Sign Up
-            </Link>
+
+            {/* AUTH BUTTON */}
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="ml-4 text-red-600 font-medium"
+              >
+                Logout
+              </button>
+            ) : (
+              <button
+                onClick={onSignInClick}
+                className="ml-4 text-gray-800 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Sign In / Sign Up
+              </button>
+            )}
           </div>
+
         </div>
       </div>
     </nav>
@@ -85,4 +144,3 @@ const Navbar: React.FC = () => {
 }
 
 export default Navbar
-

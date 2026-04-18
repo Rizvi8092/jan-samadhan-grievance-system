@@ -11,10 +11,10 @@ import axios from "axios"
 // ✅ Proper Type
 type FormDataType = {
   name: string
-  email: string
   phoneNo: string
   aadharNumber: string
   city: string
+  category: string 
   date: string
   description: string
   file: File | null
@@ -26,7 +26,6 @@ const FileComplaint: React.FC = () => {
   // ✅ Typed state
   const [formData, setFormData] = useState<FormDataType>({
     name: "",
-    email: "",
     phoneNo: "",
     aadharNumber: "",
     city: "",
@@ -46,7 +45,9 @@ const FileComplaint: React.FC = () => {
     }))
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+) => {
     const { name, value } = e.target
 
     setFormData((prevData) => ({
@@ -59,36 +60,44 @@ const FileComplaint: React.FC = () => {
     e.preventDefault()
 
     try {
-      const data = {
-        name: formData.name,
-        email: formData.email,
-        phoneNo: formData.phoneNo,
-        aadharNumber: formData.aadharNumber,
-        city: formData.city,
-        category: formData.category,
-        date: formData.date,
-        description: formData.description,
-      }
+        const data = {
+          token: localStorage.getItem("token"), // 🔥 ADD THIS
+          name: formData.name,
+          phoneNo: formData.phoneNo,
+          aadharNumber: formData.aadharNumber,
+          city: formData.city,
+          category: formData.category,
+          date: formData.date,
+          description: formData.description,
+        }
 
       console.log("Submitting complaint:", data)
 
       const response = await axios.post(
-        "http://localhost:5000/complaints",
+        "http://localhost:5000/api/complaints",
         data
       )
 
       console.log("RESPONSE:", response.data)
 
-      if (response.status === 200 || response.status === 201) {
+      if (response.data.complaintId) {
+        alert("Complaint ID: " + response.data.complaintId)
+
         setShowSuccessPopup(true)
 
         setTimeout(() => {
           setShowSuccessPopup(false)
         }, 3000)
       }
-    } catch (error) {
-      console.error("Error submitting complaint:", error)
-    }
+    } catch (err: any) {
+  if (err.response?.status === 401) {
+    localStorage.removeItem("token")
+    alert("Session expired. Please login again")
+    window.location.href = "/"
+  } else {
+    alert(err.response?.data?.message || "Error submitting complaint")
+  }
+}
   }
 
   return (
@@ -116,7 +125,7 @@ const FileComplaint: React.FC = () => {
             </motion.h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {["name", "email", "phoneNo", "aadharNumber", "city", "date"].map((field) => (
+              {["name", "phoneNo", "aadharNumber", "city", "date"].map((field) => (
                 <div key={field}>
                   <label className="block text-sm font-medium text-gray-700">
                     {field}

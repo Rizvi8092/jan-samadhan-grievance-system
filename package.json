@@ -1,8 +1,28 @@
 {
   "dependencies": {
     "axios": "^1.7.9",
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.1",
+    "mongoose": "^9.4.1",
     "mysql2": "^3.12.0"
-  }
+  },
+  "name": "jansamadhan-grievance-redressal-system",
+  "version": "1.0.0",
+  "description": "This project classifies citizen grievances into predefined categories using Logistic Regression, Naïve Bayes, and NLTK for text processing. The system also determines whether a grievance is **Critical** or **Non-Critical**. The frontend is built with React, and the backend uses Node.js, Express, and MongoDB (**MERN Stack**).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rizvi8092/jan-samadhan-grievance-system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Rizvi8092/jan-samadhan-grievance-system/issues"
+  },
+  "homepage": "https://github.com/Rizvi8092/jan-samadhan-grievance-system#readme"
 }

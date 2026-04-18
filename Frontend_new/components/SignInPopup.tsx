@@ -4,8 +4,9 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
+import axios from "axios"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faPaperPlane, faGoogle } from "@fortawesome/free-brands-svg-icons"
+import { faPaperPlane } from "@fortawesome/free-solid-svg-icons"
 
 interface SignInPopupProps {
   onClose: () => void
@@ -13,107 +14,146 @@ interface SignInPopupProps {
 
 const SignInPopup: React.FC<SignInPopupProps> = ({ onClose }) => {
   const router = useRouter()
+
+  const [email, setEmail] = useState("")
+  const [otp, setOtp] = useState("")
   const [showOtpInput, setShowOtpInput] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
-  const [timer, setTimer] = useState(300) // 5 minutes in seconds
+  const [timer, setTimer] = useState(300)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
     if (otpSent && timer > 0) {
       interval = setInterval(() => {
-        setTimer((prevTimer) => prevTimer - 1)
+        setTimer((prev) => prev - 1)
       }, 1000)
     }
     return () => clearInterval(interval)
   }, [otpSent, timer])
 
-  const handleSendOtp = () => {
-    setOtpSent(true)
-    setShowOtpInput(true)
-    setTimer(300)
+  // 🔐 SEND OTP
+  const handleSendOtp = async () => {
+    if (!email) {
+      alert("Please enter email")
+      return
+    }
+
+    try {
+      await axios.post("http://localhost:5000/api/send-otp", { email })
+
+      setOtpSent(true)
+      setShowOtpInput(true)
+      setTimer(300)
+
+      alert("OTP sent to your email")
+    } catch (err) {
+      console.error(err)
+      alert("Error sending OTP")
+    }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ✅ VERIFY OTP (NO ROLE LOGIC NOW)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Here you would typically handle the sign-in logic
-    router.push("/")
+
+    if (!otp) {
+      alert("Enter OTP")
+      return
+    }
+
+    try {
+      const res = await axios.post("http://localhost:5000/api/verify-otp", {
+        email,
+        otp
+      })
+
+      if (res.data.success) {
+        alert("Login successful")
+
+        setOtp("")
+        onClose()
+
+        // 👉 simple redirect
+        router.push("/dashboard")
+      }
+
+    } catch (err: any) {
+      console.error(err)
+      alert(err.response?.data?.message || "Invalid OTP")
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        className="bg-gradient-to-br from-blue-100 to-indigo-200 p-8 rounded-lg shadow-xl max-w-md w-full"
+        className="bg-white p-8 rounded-xl shadow-xl w-full max-w-md"
       >
-        <h2 className="text-2xl font-bold mb-4 text-center">Sign In</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">
+          Sign In / Sign Up
+        </h2>
+
         <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Username
-            </label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            />
-          </div>
-          <div className="flex items-center justify-between mb-4">
-            <button
-              type="button"
-              onClick={handleSendOtp}
-              className="group relative flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <FontAwesomeIcon icon={faPaperPlane} className="mr-2" />
-              Send OTP
-            </button>
-            {showOtpInput && (
-              <div className="flex-1 ml-4">
-                <input
-                  type="text"
-                  placeholder="Enter OTP sent on mail"
-                  className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Time remaining: {Math.floor(timer / 60)}:{timer % 60 < 10 ? "0" : ""}
-                  {timer % 60}
-                </p>
-              </div>
-            )}
-          </div>
-          {otpSent && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-sm text-green-600 mb-4"
-            >
-              OTP sent successfully!
-            </motion.div>
-          )}
-          <div className="flex justify-between items-center mb-4">
-            <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-              Submit
-            </button>
-            <button type="button" onClick={onClose} className="text-gray-600 hover:text-gray-800">
-              Close
-            </button>
-          </div>
-        </form>
-        <div className="text-center mt-4">
-          <p className="text-sm text-gray-600">or</p>
-          <p className="text-sm text-gray-600 mt-2">Sign in with</p>
-          <button className="mt-2 bg-white text-gray-700 px-4 py-2 rounded shadow hover:bg-gray-100">
-            <FontAwesomeIcon icon={faGoogle} className="mr-2" />
-            Google
+
+          {/* EMAIL */}
+          <input
+            type="email"
+            placeholder="Enter Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 border rounded mb-4"
+            required
+          />
+
+          {/* SEND OTP */}
+          <button
+            type="button"
+            onClick={handleSendOtp}
+            className="w-full bg-indigo-600 text-white py-2 rounded mb-4"
+          >
+            <FontAwesomeIcon icon={faPaperPlane} className="mr-2" />
+            Send OTP
           </button>
-        </div>
+
+          {/* OTP INPUT */}
+          {showOtpInput && (
+            <>
+              <input
+                type="text"
+                placeholder="Enter OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                className="w-full px-3 py-2 border rounded mb-2"
+              />
+
+              <p className="text-sm text-gray-500 mb-3">
+                Time remaining: {Math.floor(timer / 60)}:
+                {timer % 60 < 10 ? "0" : ""}
+                {timer % 60}
+              </p>
+
+              <button
+                type="submit"
+                className="w-full bg-green-600 text-white py-2 rounded"
+              >
+                Verify & Login
+              </button>
+            </>
+          )}
+
+          {/* CLOSE */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-4 w-full text-gray-600"
+          >
+            Close
+          </button>
+        </form>
       </motion.div>
     </div>
   )
 }
 
 export default SignInPopup
-
