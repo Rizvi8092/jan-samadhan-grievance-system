@@ -68,14 +68,14 @@ const SignInPopup: React.FC<SignInPopupProps> = ({ onClose }) => {
       })
 
       if (res.data.success) {
-        alert("Login successful")
+      localStorage.setItem("token", res.data.token); // ✅ save token
 
-        setOtp("")
-        onClose()
+      alert("Login successful");
 
-        // 👉 simple redirect
-        router.push("/dashboard")
-      }
+      onClose(); // close popup
+
+      window.location.reload(); // 🔥 THIS LINE ADDED
+    }
 
     } catch (err: any) {
       console.error(err)

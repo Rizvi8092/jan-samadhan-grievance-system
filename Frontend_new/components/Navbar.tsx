@@ -17,15 +17,23 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
 
   const router = useRouter()
 
+  // ✅ check login on load + when storage changes
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    setIsLoggedIn(!!token)
+    const checkAuth = () => {
+      const token = localStorage.getItem("token")
+      setIsLoggedIn(!!token)
+    }
+
+    checkAuth()
+
+    window.addEventListener("storage", checkAuth)
+    return () => window.removeEventListener("storage", checkAuth)
   }, [])
 
   const navItems = [
     { name: "About Us", href: "/#about-us" },
-    { name: "File a Complaint", href: "/file-complaint" },
-    { name: "Track a Complaint", href: "/track-complaint" },
+    { name: "File a Complaint", href: "/file-complaint", protected: true },
+    { name: "Track a Complaint", href: "/track-complaint", protected: true },
     { name: "Contact Us", href: "/#footer" },
   ]
 
@@ -39,7 +47,7 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
     }
   }
 
-  // 🔐 Protect routes
+  // 🔐 Protected routes
   const handleProtectedRoute = (e: React.MouseEvent, href: string) => {
     const token = localStorage.getItem("token")
 
@@ -56,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
   const handleLogout = () => {
     localStorage.removeItem("token")
     setIsLoggedIn(false)
-    alert("Logged out")
+    router.push("/") // go back to home
   }
 
   return (
@@ -80,7 +88,7 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
           <div className="hidden md:flex items-center space-x-4">
 
             {navItems.map((item) => {
-              if (item.name === "File a Complaint" || item.name === "Track a Complaint") {
+              if (item.protected) {
                 return (
                   <a
                     key={item.name}
@@ -107,7 +115,7 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
           </div>
 
           {/* RIGHT SIDE */}
-          <div className="hidden md:flex items-center">
+          <div className="hidden md:flex items-center gap-4">
 
             {/* SEARCH */}
             <div className="relative">
@@ -119,22 +127,23 @@ const Navbar: React.FC<NavbarProps> = ({ onSignInClick }) => {
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-600 absolute right-2 top-1/2 transform -translate-y-1/2" />
             </div>
 
-            {/* AUTH BUTTON */}
+            {/* AUTH SECTION */}
             {isLoggedIn ? (
               <button
                 onClick={handleLogout}
-                className="ml-4 text-red-600 font-medium"
+                className="text-red-600 font-medium hover:underline ml-4"
               >
                 Logout
               </button>
             ) : (
               <button
                 onClick={onSignInClick}
-                className="ml-4 text-gray-800 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-gray-800 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Sign In / Sign Up
               </button>
             )}
+
           </div>
 
         </div>

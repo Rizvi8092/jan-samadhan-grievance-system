@@ -1,6 +1,8 @@
 require("dns").setDefaultResultOrder("ipv4first");
 require("dotenv").config();
 
+const multer = require("multer");
+const path = require("path");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -15,12 +17,29 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 🔥 SERVE UPLOADED FILES
+app.use("/uploads", express.static("uploads"));
+
 // =======================
 // MongoDB Connection
 // =======================
 mongoose.connect("mongodb://127.0.0.1:27017/jansamadhan")
   .then(() => console.log("MongoDB Connected ✅"))
-  .catch(err => console.log(err));
+  .catch(err => console.log("DB Error:", err));
+
+// =======================
+// FILE UPLOAD (MULTER)
+// =======================
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 // =======================
 // Schema
@@ -34,8 +53,12 @@ const complaintSchema = new mongoose.Schema({
   city: String,
   category: String,
   description: String,
+  file: String, // ✅ NEW FIELD
   department: String,
-  priority: String,
+  priority: {
+    type: String,
+    default: "Low"
+  },
   solution: String,
   status: {
     type: String,
@@ -62,15 +85,11 @@ app.get("/", (req, res) => {
 });
 
 // =======================
-// SEND OTP (FIXED)
+// SEND OTP
 // =======================
 app.post("/api/send-otp", async (req, res) => {
   try {
-    const { email } = req.body;   // ✅ FIXED (IMPORTANT)
-
-    if (!email) {
-      return res.status(400).json({ message: "Email required" });
-    }
+    const { email } = req.body;
 
     const otp = Math.floor(100000 + Math.random() * 900000);
 
@@ -79,8 +98,6 @@ app.post("/api/send-otp", async (req, res) => {
       expires: Date.now() + 5 * 60 * 1000
     };
 
-    console.log("OTP:", otp);
-
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
@@ -88,9 +105,6 @@ app.post("/api/send-otp", async (req, res) => {
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        rejectUnauthorized: false
       }
     });
 
@@ -101,16 +115,16 @@ app.post("/api/send-otp", async (req, res) => {
       text: `Your OTP is: ${otp}`
     });
 
-    res.json({ message: "OTP sent" });
+    res.json({ message: "OTP sent successfully" });
 
   } catch (err) {
-    console.error("OTP ERROR:", err);
-    res.status(500).json({ message: "Email error" });
+    console.error(err);
+    res.status(500).json({ message: "Email failed" });
   }
 });
 
 // =======================
-// VERIFY OTP + LOGIN
+// VERIFY OTP
 // =======================
 app.post("/api/verify-otp", (req, res) => {
   const { email, otp } = req.body;
@@ -120,36 +134,43 @@ app.post("/api/verify-otp", (req, res) => {
     otpStore[email].otp == otp &&
     otpStore[email].expires > Date.now()
   ) {
-    const role = email === "admin@gmail.com" ? "admin" : "user";
-
     const token = jwt.sign(
-      { email, role },
+      { email },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    res.json({ success: true, token });
+    delete otpStore[email];
 
-  } else {
-    res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    return res.json({ success: true, token });
   }
+
+  res.status(400).json({ success: false });
 });
 
 // =======================
-// SUBMIT COMPLAINT
+// SUBMIT COMPLAINT (🔥 UPDATED)
 // =======================
-app.post("/api/complaints", async (req, res) => {
+app.post("/api/complaints", upload.single("file"), async (req, res) => {
   try {
-    const { token, name, phoneNo, aadharNumber, city, category, description } = req.body;
+    const {
+      token,
+      name,
+      phoneNo,
+      aadharNumber,
+      city,
+      category,
+      description,
+      date
+    } = req.body;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
-    if (!category || !description) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
     const complaintId = "JAN" + Date.now();
+
+    // 🔥 FILE PATH
+    const filePath = req.file ? req.file.filename : null;
 
     const newComplaint = new Complaint({
       complaintId,
@@ -160,28 +181,29 @@ app.post("/api/complaints", async (req, res) => {
       city,
       category,
       description,
+      file: filePath, // ✅ SAVE FILE
       status: "Pending"
     });
 
     await newComplaint.save();
 
-    res.status(201).json({
-      message: "Complaint submitted successfully",
+    res.json({
+      success: true,
       complaintId
     });
 
   } catch (err) {
+    console.error(err);
     res.status(401).json({ message: "Unauthorized" });
   }
 });
 
 // =======================
-// USER: GET OWN COMPLAINTS
+// GET USER COMPLAINTS
 // =======================
 app.post("/api/my-complaints", async (req, res) => {
   try {
     const { token } = req.body;
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const complaints = await Complaint.find({
@@ -196,38 +218,28 @@ app.post("/api/my-complaints", async (req, res) => {
 });
 
 // =======================
-// ADMIN: GET ALL
+// ADMIN GET ALL
 // =======================
 app.get("/api/complaints", async (req, res) => {
-  try {
-    const data = await Complaint.find().sort({ createdAt: -1 });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
+  const data = await Complaint.find().sort({ createdAt: -1 });
+  res.json(data);
 });
 
 // =======================
-// ADMIN: UPDATE STATUS
+// UPDATE STATUS
 // =======================
 app.put("/api/complaints/:id", async (req, res) => {
-  try {
-    const updated = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      { status: "Resolved" },
-      { new: true }
-    );
+  const updated = await Complaint.findByIdAndUpdate(
+    req.params.id,
+    { status: "Resolved" },
+    { new: true }
+  );
 
-    res.json(updated);
-
-  } catch (err) {
-    res.status(500).json({ message: "Update failed" });
-  }
+  res.json(updated);
 });
 
 // =======================
-// START SERVER
-// =======================
-app.listen(process.env.PORT || 5000, () => {
-  console.log(`Server running on http://localhost:${process.env.PORT || 5000} 🚀`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });

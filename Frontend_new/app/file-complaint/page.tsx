@@ -4,26 +4,25 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import Image from "next/image"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faPaperclip } from "@fortawesome/free-solid-svg-icons"
 import axios from "axios"
 
-// ✅ Proper Type
 type FormDataType = {
   name: string
   phoneNo: string
   aadharNumber: string
   city: string
-  category: string 
+  category: string
   date: string
   description: string
   file: File | null
 }
 
 const FileComplaint: React.FC = () => {
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
 
-  // ✅ Typed state
+  // ✅ NEW success message state
+  const [successMessage, setSuccessMessage] = useState("")
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormDataType>({
     name: "",
     phoneNo: "",
@@ -35,145 +34,215 @@ const FileComplaint: React.FC = () => {
     file: null,
   })
 
-  // ✅ Fixed file handler
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
+  const file = e.target.files?.[0] || null;
 
-    setFormData((prevData) => ({
-      ...prevData,
-      file,
-    }))
+  if (!file) return;
+
+  // validate image
+  if (!file.type.startsWith("image/")) {
+    alert("Only image allowed");
+    return;
   }
 
-  const handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-) => {
-    const { name, value } = e.target
+  setFormData((prev) => ({
+    ...prev,
+    file,
+  }));
 
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }))
+  // 🔥 SET PREVIEW
+  setPreviewUrl(URL.createObjectURL(file));
+};
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    try {
-        const data = {
-          token: localStorage.getItem("token"), // 🔥 ADD THIS
-          name: formData.name,
-          phoneNo: formData.phoneNo,
-          aadharNumber: formData.aadharNumber,
-          city: formData.city,
-          category: formData.category,
-          date: formData.date,
-          description: formData.description,
-        }
+  try {
+    const form = new FormData()
 
-      console.log("Submitting complaint:", data)
+    form.append("name", formData.name)
+    form.append("phoneNo", formData.phoneNo)
+    form.append("aadharNumber", formData.aadharNumber)
+    form.append("city", formData.city)
+    form.append("category", formData.category)
+    form.append("date", formData.date)
+    form.append("description", formData.description)
 
-      const response = await axios.post(
-        "http://localhost:5000/api/complaints",
-        data
+    if (formData.file) {
+      form.append("file", formData.file)
+    }
+
+    form.append("token", localStorage.getItem("token") || "")
+
+    const response = await axios.post(
+      "http://localhost:5000/api/complaints",
+      form,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    )
+
+    if (response.data.complaintId) {
+      setSuccessMessage(
+        `Complaint submitted successfully! ID: ${response.data.complaintId}`
       )
 
-      console.log("RESPONSE:", response.data)
+      setTimeout(() => setSuccessMessage(""), 4000)
+    }
 
-      if (response.data.complaintId) {
-        alert("Complaint ID: " + response.data.complaintId)
-
-        setShowSuccessPopup(true)
-
-        setTimeout(() => {
-          setShowSuccessPopup(false)
-        }, 3000)
-      }
-    } catch (err: any) {
-  if (err.response?.status === 401) {
-    localStorage.removeItem("token")
-    alert("Session expired. Please login again")
-    window.location.href = "/"
-  } else {
+  } catch (err: any) {
     alert(err.response?.data?.message || "Error submitting complaint")
   }
 }
-  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-indigo-200 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-indigo-200 py-12 px-4">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
         className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden"
       >
         <div className="md:flex">
-          <div className="md:flex-shrink-0">
-            <Image
-              className="h-48 w-full object-cover md:w-48"
-              src="/placeholder.svg?height=300&width=300"
-              alt="Complaint Image"
-              width={300}
-              height={300}
-            />
-          </div>
+          <Image
+            className="h-48 w-full object-cover md:w-48"
+            src="/placeholder.svg"
+            alt="Complaint"
+            width={300}
+            height={300}
+          />
 
           <div className="p-8 w-full">
-            <motion.h2 className="text-3xl font-bold text-gray-900 mb-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">
               File a Complaint
-            </motion.h2>
+            </h2>
+
+            {/* ✅ SUCCESS DIV */}
+            {successMessage && (
+              <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-300 text-green-800 shadow-sm">
+                ✅ {successMessage}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {["name", "phoneNo", "aadharNumber", "city", "date"].map((field) => (
-                <div key={field}>
-                  <label className="block text-sm font-medium text-gray-700">
-                    {field}
+
+              {/* INPUTS */}
+              {[
+                { name: "name", label: "Name", placeholder: "Enter your name" },
+                { name: "phoneNo", label: "Phone Number", placeholder: "Enter phone number" },
+                { name: "aadharNumber", label: "Aadhar Number", placeholder: "Enter Aadhar number" },
+                { name: "city", label: "City", placeholder: "Enter your city" },
+              ].map((field) => (
+                <div key={field.name}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.label}
                   </label>
                   <input
-                    type={field === "date" ? "date" : "text"}
-                    name={field}
-                    required
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    value={formData[field as keyof FormDataType] as string}
+                    type="text"
+                    name={field.name}
+                    placeholder={field.placeholder}
+                    value={formData[field.name as keyof FormDataType] as string}
                     onChange={handleChange}
+                    required
+                    className="w-full border border-gray-300 px-3 py-2 rounded placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               ))}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Category
-                </label>
 
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-gray-300"
-                  required
-                >
-                  <option value="">Select Category</option>
-                  <option value="CM Office">CM Office</option>
-                  <option value="Municipal">Municipal</option>
-                  <option value="Police">Police</option>
-                  <option value="Development Authority">Development Authority</option>
-                  <option value="Public Works Department">Public Works Department</option>
-                </select>
-              </div>
-              <textarea
-                name="description"
-                placeholder="Description"
-                required
-                value={formData.description}
+              {/* DATE */}
+              <input
+                type="date"
+                name="date"
+                value={formData.date}
                 onChange={handleChange}
-                className="w-full border p-2"
+                required
+                className="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
-              <input type="file" onChange={handleFileChange} />
+              {/* CATEGORY */}
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                required
+                className="w-full border border-gray-300 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Category</option>
+                <option value="CM Office">CM Office</option>
+                <option value="Municipal">Municipal</option>
+                <option value="Police">Police</option>
+                <option value="PWD">Public Works Department</option>
+              </select>
 
+              {/* DESCRIPTION */}
+              <textarea
+                name="description"
+                placeholder="Describe your issue..."
+                value={formData.description}
+                onChange={handleChange}
+                required
+                className="w-full border border-gray-300 px-3 py-2 rounded placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+             {/* FILE */}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+
+              {/* ✅ IMAGE PREVIEW (ADD HERE) */}
+              {previewUrl && (
+                <div style={{ marginTop: "10px", position: "relative", width: "100px" }}>
+
+                  <img
+                    src={previewUrl}
+                    style={{
+                      width: "100px",
+                      height: "100px",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      border: "1px solid #ccc"
+                    }}
+                  />
+
+                  {/* ❌ REMOVE BUTTON */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewUrl(null);
+                      setFormData((prev) => ({ ...prev, file: null }));
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "-5px",
+                      right: "-5px",
+                      background: "red",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "22px",
+                      height: "22px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    ×
+                  </button>
+
+                </div>
+              )}
+              {/* SUBMIT */}
               <button
                 type="submit"
-                className="w-full bg-green-600 text-white p-3 rounded"
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded transition"
               >
                 Submit Complaint
               </button>
@@ -181,14 +250,6 @@ const FileComplaint: React.FC = () => {
           </div>
         </div>
       </motion.div>
-
-      {showSuccessPopup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded">
-            Complaint Submitted Successfully!
-          </div>
-        </div>
-      )}
     </div>
   )
 }
