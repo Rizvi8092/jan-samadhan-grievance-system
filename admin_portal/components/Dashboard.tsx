@@ -1,10 +1,9 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Row, Col, Table } from 'react-bootstrap';
+import { Card, Row, Col, Table, Modal, Button } from 'react-bootstrap';
 import { Pie, Bar } from 'react-chartjs-2';
 import axios from 'axios';
-import { Modal, Button } from "react-bootstrap";
 
 import {
   Chart as ChartJS,
@@ -20,44 +19,73 @@ import {
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 const Dashboard = () => {
+
   const [filterStatus, setFilterStatus] = useState("All");
+  const [priorityFilter, setPriorityFilter] = useState("All");
   const [complaints, setComplaints] = useState([]);
-  const [filteredComplaints, setFilteredComplaints] = useState([]);
   const [searchId, setSearchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
 
-  // ✅ FETCH DATA
-  useEffect(() => {
-    const fetchComplaints = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/complaints");
-        setComplaints(res.data);
-        setFilteredComplaints(res.data); // 🔥 important
-      } catch (err) {
-        console.error("Error fetching complaints:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // ================= FETCH =================
+  const fetchComplaints = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/complaints");
+      setComplaints(res.data);
+    } catch (err) {
+      console.error("Error fetching complaints:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchComplaints();
+
+    // 🔥 AUTO REFRESH
+    const interval = setInterval(fetchComplaints, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  // ✅ SEARCH FILTER
-  useEffect(() => {
-    if (!searchId) {
-      setFilteredComplaints(complaints);
-    } else {
-      const filtered = complaints.filter((c: any) =>
-        c.complaintId?.toLowerCase().includes(searchId.toLowerCase())
-      );
-      setFilteredComplaints(filtered);
-    }
-  }, [searchId, complaints]);
+  // ================= FILTER =================
+  const finalComplaints = useMemo(() => {
+    return complaints.filter((c: any) => {
 
-  // ✅ PIE DATA
+      const matchesSearch = searchId
+        ? c.complaintId?.toLowerCase().includes(searchId.toLowerCase())
+        : true;
+
+      const matchesStatus =
+        filterStatus === "All" ? true : c.status === filterStatus;
+
+      const matchesPriority =
+        priorityFilter === "All" ? true : c.priority === priorityFilter;
+
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [complaints, searchId, filterStatus, priorityFilter]);
+
+  // ================= SORT =================
+  const sortedComplaints = [...finalComplaints].sort((a: any, b: any) => {
+    const order: any = { High: 3, Medium: 2, Low: 1 };
+    return (order[b.priority] || 0) - (order[a.priority] || 0);
+  });
+
+  // ================= PRIORITY DATA 🔥 =================
+  const priorityData = {
+    labels: ["High", "Medium", "Low"],
+    datasets: [{
+      data: [
+        complaints.filter((c:any)=>c.priority==="High").length,
+        complaints.filter((c:any)=>c.priority==="Medium").length,
+        complaints.filter((c:any)=>c.priority==="Low").length
+      ],
+      backgroundColor: ["#dc3545","#ffc107","#28a745"]
+    }]
+  };
+
+  // ================= CATEGORY PIE =================
   const pieData = useMemo(() => {
     const categoryCount: any = {};
 
@@ -68,25 +96,16 @@ const Dashboard = () => {
 
     return {
       labels: Object.keys(categoryCount),
-      datasets: [
-        {
-          data: Object.values(categoryCount),
-          backgroundColor: [
-            "#4e73df",
-            "#1cc88a",
-            "#36b9cc",
-            "#f6c23e",
-            "#e74a3b"
-          ]
-        }
-      ]
+      datasets: [{
+        data: Object.values(categoryCount),
+        backgroundColor: ["#4e73df", "#1cc88a", "#36b9cc", "#f6c23e", "#e74a3b"]
+      }]
     };
   }, [complaints]);
 
-  // ✅ BAR DATA
+  // ================= BAR =================
   const barData = useMemo(() => {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
     const received = new Array(12).fill(0);
     const resolved = new Array(12).fill(0);
 
@@ -94,310 +113,207 @@ const Dashboard = () => {
       const d = c.createdAt ? new Date(c.createdAt) : null;
       if (!d || isNaN(d.getTime())) return;
 
-      const month = d.getMonth();
-      received[month] += 1;
-
-      if (c.status === "Resolved") {
-        resolved[month] += 1;
-      }
+      const m = d.getMonth();
+      received[m] += 1;
+      if (c.status === "Resolved") resolved[m] += 1;
     });
 
     return {
       labels: months,
       datasets: [
-        {
-          label: "Received",
-          data: received,
-          backgroundColor: "#4e73df"
-        },
-        {
-          label: "Resolved",
-          data: resolved,
-          backgroundColor: "#1cc88a"
-        }
+        { label: "Received", data: received, backgroundColor: "#4e73df" },
+        { label: "Resolved", data: resolved, backgroundColor: "#1cc88a" }
       ]
     };
   }, [complaints]);
 
-  if (loading) {
-    return <p className="text-center mt-10">Loading...</p>;
-  }
-
-  // ✅ MARK RESOLVED
+  // ================= ACTION =================
   const markResolved = async (id: string) => {
     try {
       await axios.put(`http://localhost:5000/api/complaints/${id}`);
-      const res = await axios.get("http://localhost:5000/api/complaints");
-      setComplaints(res.data);
+      fetchComplaints();
     } catch (err) {
       console.error(err);
     }
   };
 
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
+
   return (
     <div className="container-fluid px-4">
-      <h1 className="h3 mb-4 mt-4 text-gray-800">Admin Dashboard</h1>
 
-      {/* CARDS */}
+      <h1 className="h3 mt-4 mb-4">Admin Dashboard</h1>
+        {complaints.some((c:any)=>c.priority==="High") && (
+        <div className="alert alert-danger fw-bold">
+          🚨 High Priority Complaints Present — Immediate Attention Required
+        </div>
+      )}
+
+      {/* ================= CARDS ================= */}
       <Row>
-        <Col lg={4}>
-          <Card className="shadow mb-4">
-            <Card.Body>
-              <h6>Total Complaints</h6>
-              <h4>{complaints.length}</h4>
-            </Card.Body>
-          </Card>
-        </Col>
-
-        <Col lg={4}>
-          <Card className="shadow mb-4">
-            <Card.Body>
-              <h6>Pending</h6>
-              <h4>{complaints.filter((c: any) => c.status === "Pending").length}</h4>
-            </Card.Body>
-          </Card>
-        </Col>
-
-        <Col lg={4}>
-          <Card className="shadow mb-4">
-            <Card.Body>
-              <h6>Resolved</h6>
-              <h4>{complaints.filter((c: any) => c.status === "Resolved").length}</h4>
-            </Card.Body>
-          </Card>
-        </Col>
+        <Col lg={3}><Card><Card.Body><h6>Total</h6><h4>{complaints.length}</h4></Card.Body></Card></Col>
+        <Col lg={3}><Card><Card.Body><h6>Pending</h6><h4>{complaints.filter((c:any)=>c.status==="Pending").length}</h4></Card.Body></Card></Col>
+        <Col lg={3}><Card><Card.Body><h6>Resolved</h6><h4>{complaints.filter((c:any)=>c.status==="Resolved").length}</h4></Card.Body></Card></Col>
+        <Col lg={3}><Card><Card.Body><h6>High</h6><h4>{complaints.filter((c:any)=>c.priority==="High").length}</h4></Card.Body></Card></Col>
+        <Col lg={3}><Card><Card.Body><h6>Medium</h6><h4>{complaints.filter((c:any)=>c.priority==="Medium").length}</h4></Card.Body></Card></Col>
+        <Col lg={3}><Card><Card.Body><h6>Low</h6><h4>{complaints.filter((c:any)=>c.priority==="Low").length}</h4></Card.Body></Card></Col>
       </Row>
 
-      {/* CHARTS */}
-      <Row>
-        <Col lg={4}>
-          <Card className="shadow mb-4">
-            <Card.Header>Category</Card.Header>
-            <Card.Body>
-              <Pie data={pieData} />
-            </Card.Body>
-          </Card>
-        </Col>
-
-        <Col lg={8}>
-          <Card className="shadow mb-4">
-            <Card.Header>Trend</Card.Header>
-            <Card.Body>
-              <Bar data={barData} />
-            </Card.Body>
-          </Card>
-        </Col>
+      {/* ================= CHARTS ================= */}
+      <Row className="mt-4">
+        <Col lg={4}><Card><Card.Body><h6>Priority Distribution</h6><Pie data={priorityData} /></Card.Body></Card></Col>
+        <Col lg={4}><Card><Card.Body><h6>Category Distribution</h6><Pie data={pieData} /></Card.Body></Card></Col>
+        <Col lg={4}><Card><Card.Body><Bar data={barData} /></Card.Body></Card></Col>
       </Row>
 
-      {/* TABLE + SEARCH */}
-      <Card className="shadow mb-4">
-        <Card.Header className="d-flex justify-content-between align-items-center">
-          <span>Recent Complaints</span>
+      {/* ================= FILTERS ================= */}
+      <div className="d-flex gap-2 mt-4 flex-wrap">
 
-          {/* 🔍 SEARCH BOX */}
-          <input
-            type="text"
-            placeholder="Search by Complaint ID..."
-            value={searchId}
-            onChange={(e) => setSearchId(e.target.value)}
-            className="form-control"
-            style={{ maxWidth: "300px" }}
-          />
-        </Card.Header>
+        {["All","Pending","Resolved"].map(s=>(
+          <button key={s}
+            className={`btn ${filterStatus===s?"btn-primary":"btn-outline-primary"}`}
+            onClick={()=>setFilterStatus(s)}>
+            {s}
+          </button>
+        ))}
 
-        <Card.Body>
-          <div style={{ marginBottom: "15px", display: "flex", gap: "10px" }}>
+        {["All","High","Medium","Low"].map(p=>(
+          <button key={p}
+            className={`btn ${priorityFilter===p?"btn-dark":"btn-outline-dark"}`}
+            onClick={()=>setPriorityFilter(p)}>
+            {p}
+          </button>
+        ))}
 
-  <button
-    className={`btn ${filterStatus === "All" ? "btn-primary" : "btn-outline-primary"}`}
-    onClick={() => setFilterStatus("All")}
-  >
-    All
-  </button>
-
-  <button
-    className={`btn ${filterStatus === "Pending" ? "btn-warning" : "btn-outline-warning"}`}
-    onClick={() => setFilterStatus("Pending")}
-  >
-    Pending
-  </button>
-
-  <button
-    className={`btn ${filterStatus === "Resolved" ? "btn-success" : "btn-outline-success"}`}
-    onClick={() => setFilterStatus("Resolved")}
-  >
-    Resolved
-  </button>
-
-</div>
-          <Table striped bordered hover responsive>
-  <thead className="table-light">
-    <tr>
-      <th>#</th>
-      <th>Complaint ID</th>
-      <th>Complaint</th>
-      <th>Name</th>
-      <th>Category</th>
-      <th>City</th>
-      <th>Date</th>
-      <th>Priority</th>
-      <th>Status</th>
-      <th>File</th> {/* ✅ NEW */}
-      <th>Action</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    {filteredComplaints
-  .filter((c: any) => {
-    if (filterStatus === "All") return true;
-    return c.status === filterStatus;
-  })
-  .map((c: any, index: number) => (
-      <tr key={c._id}>
-
-  <td>{index + 1}</td>
-
-  <td className="fw-semibold text-primary">
-    {c.complaintId || "N/A"}
-  </td>
-
-  {/* ✅ COMPLAINT TEXT */}
-  <td style={{ maxWidth: "200px" }}>
-  {c.description ? (
-    <span
-      style={{ cursor: "pointer", color: "#007bff" }}
-      onClick={() => {
-        setSelectedComplaint(c);
-        setShowModal(true);
-      }}
-    >
-      {c.description.length > 30
-        ? c.description.substring(0, 30) + "..."
-        : c.description}
-    </span>
-  ) : (
-    <span className="text-muted">No Description</span>
-  )}
-</td>
-
-  {/* NAME */}
-  <td>{c.name}</td>
-
-  {/* CATEGORY */}
-  <td>
-    <span className="badge bg-secondary">
-      {c.category}
-    </span>
-  </td>
-
-  <td>{c.city}</td>
-
-  <td>
-    {c.createdAt
-      ? new Date(c.createdAt).toLocaleDateString()
-      : "N/A"}
-  </td>
-
-  <td>
-    <span className={`badge ${
-      c.priority === "High"
-        ? "bg-danger"
-        : c.priority === "Medium"
-        ? "bg-warning text-dark"
-        : "bg-success"
-    }`}>
-      {c.priority || "Low"}
-    </span>
-  </td>
-
-  <td>
-    <span className={`badge ${
-      c.status === "Pending"
-        ? "bg-warning text-dark"
-        : "bg-success"
-    }`}>
-      {c.status}
-    </span>
-  </td>
-
-  {/* 🔥 FILE COLUMN (IMAGE PREVIEW) */}
-  <td>
-    {c.file ? (
-      /\.(jpg|jpeg|png|webp)$/i.test(c.file) ? (
-        <img
-          src={`http://localhost:5000/uploads/${c.file}`}
-          style={{
-            width: "50px",
-            height: "50px",
-            objectFit: "cover",
-            borderRadius: "6px",
-            cursor: "pointer"
-          }}
-          onClick={() =>
-            window.open(`http://localhost:5000/uploads/${c.file}`, "_blank")
-          }
+        <input
+          placeholder="Search ID..."
+          value={searchId}
+          onChange={(e)=>setSearchId(e.target.value)}
+          className="form-control"
+          style={{maxWidth:200}}
         />
-      ) : (
-        <a
-          href={`http://localhost:5000/uploads/${c.file}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-sm btn-outline-info"
-        >
-          View
-        </a>
-      )
-    ) : (
-      <span className="text-muted">No File</span>
-    )}
-  </td>
+      </div>
 
-  <td>
-    {c.status !== "Resolved" ? (
-      <button
-        onClick={() => markResolved(c._id)}
-        className="btn btn-sm btn-outline-primary"
-      >
-        Resolve
-      </button>
-    ) : (
-      <span className="text-success fw-semibold">
-        Done
-      </span>
-    )}
-  </td>
+      {/* ================= TABLE ================= */}
+      <Card className="mt-3">
+        <Card.Body>
 
-</tr>
-    ))}
-  </tbody>
-</Table>
-<Modal show={showModal} onHide={() => setShowModal(false)} centered>
-  <Modal.Header closeButton>
-    <Modal.Title>Complaint Details</Modal.Title>
-  </Modal.Header>
+          <Table bordered hover responsive>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>ID</th>
+                <th>Description</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>City</th>
+                <th>Date</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>File</th>
+                <th>Action</th>
+              </tr>
+            </thead>
 
-  <Modal.Body>
-    <p><strong>Name:</strong> {selectedComplaint?.name}</p>
-    <p><strong>Category:</strong> {selectedComplaint?.category}</p>
-    <p><strong>City:</strong> {selectedComplaint?.city}</p>
+            <tbody>
+              {sortedComplaints.map((c:any,index)=>(
+                <tr
+                    key={c._id}
+                    className={
+                      c.status === "Resolved"
+                        ? "table-success"
+                        : c.priority === "High"
+                        ? "table-danger high-row"
+                        : c.priority === "Medium"
+                        ? "table-warning"
+                        : ""
+                    }
+                    style={{
+                      borderLeft:
+                        c.status === "Resolved"
+                          ? "5px solid green"
+                          : c.priority === "High"
+                          ? "5px solid red"
+                          : c.priority === "Medium"
+                          ? "5px solid orange"
+                          : "5px solid green"
+                    }}
+                  >
 
-    <hr />
+                  <td>{index+1}</td>
+                  <td>{c.complaintId}</td>
 
-    <p><strong>Description:</strong></p>
-    <p style={{ whiteSpace: "pre-line" }}>
-      {selectedComplaint?.description}
-    </p>
-  </Modal.Body>
+                  <td onClick={()=>{setSelectedComplaint(c);setShowModal(true)}} style={{cursor:"pointer"}}>
+                    {c.description?.slice(0,30)}...
+                  </td>
 
-  <Modal.Footer>
-    <Button variant="secondary" onClick={() => setShowModal(false)}>
-      Close
-    </Button>
-  </Modal.Footer>
-</Modal>
+                  <td>{c.name}</td>
+                  <td><span className="badge bg-secondary">{c.category}</span></td>
+                  <td>{c.city}</td>
+                  <td>{new Date(c.createdAt).toLocaleDateString()}</td>
+
+                  <td>
+                    <span className={`badge px-3 py-2 ${
+                      c.priority==="High"?"bg-danger":
+                      c.priority==="Medium"?"bg-warning text-dark":
+                      "bg-success"
+                    }`}>
+                      {c.priority === "High" ? "⚠️ HIGH" : c.priority}
+                    </span>
+                  </td>
+
+                  <td>
+                    <span className={`badge ${
+                      c.status==="Pending"?"bg-warning text-dark":"bg-success"
+                    }`}>
+                      {c.status}
+                    </span>
+                  </td>
+
+                  <td>
+                    {c.file ? (
+                      /\.(jpg|jpeg|png)$/i.test(c.file) ? (
+                        <img src={`http://localhost:5000/uploads/${c.file}`} style={{width:50,height:50}} />
+                      ) : (
+                        <a href={`http://localhost:5000/uploads/${c.file}`} target="_blank">View</a>
+                      )
+                    ) : "No File"}
+                  </td>
+
+                  <td>
+                    {c.status!=="Resolved" ? (
+                      <button className="btn btn-sm btn-primary" onClick={()=>markResolved(c._id)}>
+                        Resolve
+                      </button>
+                    ) : "Done"}
+                  </td>
+
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+
         </Card.Body>
       </Card>
+
+      {/* ================= MODAL ================= */}
+      <Modal show={showModal} onHide={()=>setShowModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Complaint Details</Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          <p><b>Name:</b> {selectedComplaint?.name}</p>
+          <p><b>Category:</b> {selectedComplaint?.category}</p>
+          <p><b>City:</b> {selectedComplaint?.city}</p>
+          <p><b>Description:</b> {selectedComplaint?.description}</p>
+        </Modal.Body>
+
+        <Modal.Footer>
+          <Button onClick={()=>setShowModal(false)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
     </div>
   );
 };

@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 const app = express();
 
@@ -16,29 +17,23 @@ const app = express();
 // =======================
 app.use(express.json());
 app.use(cors());
-
-// 🔥 SERVE UPLOADED FILES
 app.use("/uploads", express.static("uploads"));
 
 // =======================
-// MongoDB Connection
+// MongoDB
 // =======================
 mongoose.connect("mongodb://127.0.0.1:27017/jansamadhan")
   .then(() => console.log("MongoDB Connected ✅"))
   .catch(err => console.log("DB Error:", err));
 
 // =======================
-// FILE UPLOAD (MULTER)
+// Multer
 // =======================
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + path.extname(file.originalname)),
 });
-
 const upload = multer({ storage });
 
 // =======================
@@ -53,35 +48,29 @@ const complaintSchema = new mongoose.Schema({
   city: String,
   category: String,
   description: String,
-  file: String, // ✅ NEW FIELD
-  department: String,
-  priority: {
-    type: String,
-    default: "Low"
-  },
-  solution: String,
-  status: {
-    type: String,
-    default: "Pending"
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  file: String,
+  priority: { type: String, default: "Low" },
+  status: { type: String, default: "Pending" },
+  createdAt: { type: Date, default: Date.now }
 });
 
 const Complaint = mongoose.model("Complaint", complaintSchema);
 
 // =======================
-// OTP Store
+// ENV CONFIG
+// =======================
+const ML_API = process.env.ML_API_URL || "http://localhost:5001";
+
+// =======================
+// OTP STORE
 // =======================
 let otpStore = {};
 
 // =======================
-// Root
+// ROOT
 // =======================
 app.get("/", (req, res) => {
-  res.send("Jan Samadhan Backend Running 🚀");
+  res.send("JanSamadhan Backend Running 🚀");
 });
 
 // =======================
@@ -105,7 +94,8 @@ app.post("/api/send-otp", async (req, res) => {
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      }
+      },
+      tls: { rejectUnauthorized: false }
     });
 
     await transporter.sendMail({
@@ -115,11 +105,11 @@ app.post("/api/send-otp", async (req, res) => {
       text: `Your OTP is: ${otp}`
     });
 
-    res.json({ message: "OTP sent successfully" });
+    res.json({ message: "OTP sent" });
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Email failed" });
+  } catch (error) {
+    console.error("OTP ERROR:", error.message);
+    res.status(500).json({ message: "OTP failed" });
   }
 });
 
@@ -134,11 +124,7 @@ app.post("/api/verify-otp", (req, res) => {
     otpStore[email].otp == otp &&
     otpStore[email].expires > Date.now()
   ) {
-    const token = jwt.sign(
-      { email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
+    const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
     delete otpStore[email];
 
@@ -149,7 +135,7 @@ app.post("/api/verify-otp", (req, res) => {
 });
 
 // =======================
-// SUBMIT COMPLAINT (🔥 UPDATED)
+// SUBMIT COMPLAINT (ML INTEGRATED)
 // =======================
 app.post("/api/complaints", upload.single("file"), async (req, res) => {
   try {
@@ -160,17 +146,43 @@ app.post("/api/complaints", upload.single("file"), async (req, res) => {
       aadharNumber,
       city,
       category,
-      description,
-      date
+      description
     } = req.body;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
     const complaintId = "JAN" + Date.now();
-
-    // 🔥 FILE PATH
     const filePath = req.file ? req.file.filename : null;
+
+    let priority = "Low";
+
+    // 🔥 ML CALL (UPDATED)
+    try {
+      const aiRes = await axios.post(
+        `${ML_API}/predict`,
+        { description },
+        {
+          headers: {
+            "Content-Type": "application/json"
+          },
+          timeout: 3000
+        }
+      );
+
+      const valid = ["High", "Medium", "Low"];
+
+      if (aiRes.data && valid.includes(aiRes.data.priority)) {
+        priority = aiRes.data.priority;
+      }
+
+      console.log("🤖 ML RESPONSE:", aiRes.data);
+
+    } catch (err) {
+      console.log("⚠️ ML failed → fallback Low");
+    }
+
+    console.log("📌 FINAL PRIORITY:", priority);
 
     const newComplaint = new Complaint({
       complaintId,
@@ -181,7 +193,8 @@ app.post("/api/complaints", upload.single("file"), async (req, res) => {
       city,
       category,
       description,
-      file: filePath, // ✅ SAVE FILE
+      file: filePath,
+      priority,
       status: "Pending"
     });
 
@@ -189,26 +202,26 @@ app.post("/api/complaints", upload.single("file"), async (req, res) => {
 
     res.json({
       success: true,
-      complaintId
+      complaintId,
+      priority
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("SUBMIT ERROR:", err);
     res.status(401).json({ message: "Unauthorized" });
   }
 });
 
 // =======================
-// GET USER COMPLAINTS
+// USER COMPLAINTS
 // =======================
 app.post("/api/my-complaints", async (req, res) => {
   try {
     const { token } = req.body;
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const complaints = await Complaint.find({
-      email: decoded.email
-    }).sort({ createdAt: -1 });
+    const complaints = await Complaint.find({ email: decoded.email })
+      .sort({ createdAt: -1 });
 
     res.json(complaints);
 
@@ -218,7 +231,7 @@ app.post("/api/my-complaints", async (req, res) => {
 });
 
 // =======================
-// ADMIN GET ALL
+// ADMIN ALL
 // =======================
 app.get("/api/complaints", async (req, res) => {
   const data = await Complaint.find().sort({ createdAt: -1 });

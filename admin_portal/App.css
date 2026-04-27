@@ -4,15 +4,18 @@ body {
     "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 
+/* ================= NAVBAR ================= */
 .navbar-brand {
   font-weight: 800;
   color: #5a5c69 !important;
 }
 
+/* ================= SHADOW ================= */
 .shadow {
   box-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;
 }
 
+/* ================= CARD ================= */
 .card {
   position: relative;
   display: flex;
@@ -23,8 +26,14 @@ body {
   background-clip: border-box;
   border: 1px solid #e3e6f0;
   border-radius: .35rem;
+  transition: 0.2s ease;
 }
 
+.card:hover {
+  transform: translateY(-3px);
+}
+
+/* ================= CARD HEADER ================= */
 .card-header {
   padding: .75rem 1.25rem;
   margin-bottom: 0;
@@ -32,6 +41,7 @@ body {
   border-bottom: 1px solid #e3e6f0;
 }
 
+/* ================= BORDER COLORS ================= */
 .border-left-primary {
   border-left: .25rem solid #4e73df !important;
 }
@@ -44,6 +54,7 @@ body {
   border-left: .25rem solid #36b9cc !important;
 }
 
+/* ================= TEXT ================= */
 .text-gray-300 {
   color: #dddfeb !important;
 }
@@ -56,7 +67,67 @@ body {
   font-weight: 700 !important;
 }
 
+/* ================= TABLE ================= */
 .table-sm td,
 .table-sm th {
   padding: .3rem;
+}
+
+/* ================= HOVER EFFECT ================= */
+tr {
+  transition: all 0.2s ease;
+}
+
+tr:hover {
+  transform: scale(1.01);
+  background-color: #f1f3f9;
+}
+
+/* ================= PRIORITY HIGHLIGHT ================= */
+
+/* 🔴 HIGH PRIORITY PULSE */
+@keyframes pulseHigh {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+  }
+}
+
+.high-row {
+  animation: pulseHigh 1.5s infinite;
+}
+
+/* 🔴 HIGH PRIORITY ROW */
+.table-danger {
+  background-color: #ffe5e5 !important;
+  border-left: 5px solid red;
+}
+
+/* 🟡 MEDIUM PRIORITY ROW */
+.table-warning {
+  background-color: #fff3cd !important;
+  border-left: 5px solid orange;
+}
+
+/* 🟢 LOW PRIORITY ROW */
+.table-success {
+  background-color: #e6ffed !important;
+  border-left: 5px solid green;
+}
+
+/* ================= BADGE IMPROVEMENT ================= */
+.badge {
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+/* ================= ALERT ================= */
+.alert-danger {
+  border-left: 5px solid red;
+  font-size: 1rem;
 }
